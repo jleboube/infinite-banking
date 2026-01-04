@@ -1,0 +1,232 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String
+  name          String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Financial Profile
+  annualIncome      Float?
+  monthlyIncome     Float?
+  savingsRate       Float?    @default(10)
+  currentSavings    Float?    @default(0)
+
+  // Onboarding status
+  onboardingComplete Boolean  @default(false)
+  onboardingStep     Int      @default(0)
+
+  // Relations
+  policies      Policy[]
+  debts         Debt[]
+  loans         PolicyLoan[]
+  transactions  Transaction[]
+  aiConfig      AIConfiguration?
+
+  @@map("users")
+}
+
+model AIConfiguration {
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  provider      AIProvider @default(OPENAI)
+  apiKey        String?   // Encrypted
+  selfHostedUrl String?
+  selfHostedModel String?
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@map("ai_configurations")
+}
+
+enum AIProvider {
+  OPENAI
+  ANTHROPIC
+  GEMINI
+  GROK
+  SELF_HOSTED
+}
+
+model Policy {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name              String
+  company           String    // Insurance company name
+  policyNumber      String?
+
+  // Financial details
+  monthlyPremium    Float
+  deathBenefit      Float
+  cashValue         Float     @default(0)
+  availableLoanAmount Float   @default(0)
+
+  // Rates
+  dividendRate      Float     @default(6.0)   // Percentage
+  guaranteedRate    Float     @default(4.0)   // Percentage
+  loanRate          Float     @default(5.0)   // Percentage
+
+  // Dates
+  startDate         DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  loans             PolicyLoan[]
+  transactions      Transaction[]
+
+  @@map("policies")
+}
+
+model Debt {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name          String
+  type          DebtType
+
+  // Financial details
+  originalAmount    Float
+  currentBalance    Float
+  interestRate      Float     // Annual percentage
+  minimumPayment    Float
+  monthlyPayment    Float?    // User's actual payment
+
+  // Status
+  isPaidOff     Boolean   @default(false)
+  paidOffDate   DateTime?
+  priority      Int       @default(0)   // For debt payoff ordering
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  transactions  Transaction[]
+
+  @@map("debts")
+}
+
+enum DebtType {
+  CREDIT_CARD
+  CAR_LOAN
+  MORTGAGE
+  STUDENT_LOAN
+  PERSONAL_LOAN
+  MEDICAL
+  OTHER
+}
+
+model PolicyLoan {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  policyId      String
+  policy        Policy    @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  // Loan details
+  amount            Float
+  interestRate      Float     // Annual percentage
+  currentBalance    Float
+
+  // Purpose tracking
+  purpose       LoanPurpose
+  purposeNotes  String?
+
+  // Status
+  status        LoanStatus  @default(ACTIVE)
+  startDate     DateTime    @default(now())
+  paidOffDate   DateTime?
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  // Relations
+  transactions  Transaction[]
+
+  @@map("policy_loans")
+}
+
+enum LoanPurpose {
+  DEBT_PAYOFF
+  INVESTMENT
+  PURCHASE
+  EMERGENCY
+  OTHER
+}
+
+enum LoanStatus {
+  ACTIVE
+  PAID_OFF
+  DEFAULTED
+}
+
+model Transaction {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type          TransactionType
+  amount        Float
+  description   String?
+
+  // Related entities (optional)
+  policyId      String?
+  policy        Policy?   @relation(fields: [policyId], references: [id], onDelete: SetNull)
+  debtId        String?
+  debt          Debt?     @relation(fields: [debtId], references: [id], onDelete: SetNull)
+  loanId        String?
+  loan          PolicyLoan? @relation(fields: [loanId], references: [id], onDelete: SetNull)
+
+  // Dates
+  transactionDate DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  @@map("transactions")
+}
+
+enum TransactionType {
+  POLICY_PREMIUM
+  POLICY_LOAN_DISBURSEMENT
+  POLICY_LOAN_REPAYMENT
+  DEBT_PAYMENT
+  CASH_VALUE_INCREASE
+  DIVIDEND_CREDIT
+  INTEREST_CHARGE
+  SAVINGS_DEPOSIT
+}
+
+// For tracking projections and simulations
+model Projection {
+  id            String    @id @default(cuid())
+  userId        String
+
+  name          String
+  description   String?
+
+  // Projection parameters
+  yearsToProject Int      @default(20)
+  monthlyContribution Float
+  expectedDividendRate Float @default(6.0)
+
+  // Results (stored as JSON)
+  projectionData Json
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@map("projections")
+}
