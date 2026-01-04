@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   app:
     build:
@@ -7,14 +5,10 @@ services:
       dockerfile: Dockerfile
     ports:
       - "47832:3000"
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=postgresql://ibm_user:ibm_secure_pass_2024@postgres:5432/infinite_banking?schema=public
-      - NEXTAUTH_URL=http://localhost:47832
-      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-your-super-secret-key-change-in-production}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - GROK_API_KEY=${GROK_API_KEY:-}
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
     depends_on:
       postgres:
         condition: service_healthy
@@ -26,14 +20,16 @@ services:
 
   postgres:
     image: postgres:16-alpine
+    env_file:
+      - .env
     environment:
-      POSTGRES_USER: ibm_user
-      POSTGRES_PASSWORD: ibm_secure_pass_2024
-      POSTGRES_DB: infinite_banking
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ibm_user -d infinite_banking"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -59,8 +55,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.migrate
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=postgresql://ibm_user:ibm_secure_pass_2024@postgres:5432/infinite_banking?schema=public
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
     depends_on:
       postgres:
         condition: service_healthy
